@@ -27,7 +27,7 @@ print (simple_dict)
 # Задача 1.2
 simple_dict.setdefault("country")
 # или
-"country" in simple_dict.keys()
+print("country" in simple_dict.keys())
 
 print(simple_dict.get("country", "Россия"))
 simple_dict["date"] = "27.05.2019"
