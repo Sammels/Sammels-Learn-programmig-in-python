@@ -29,6 +29,6 @@ simple_dict.setdefault("country")
 # или
 print("country" in simple_dict.keys())
 
-print(simple_dict.get("country", "Россия"))
+print(simple_dict.setdefault("country", "Россия"))
 simple_dict["date"] = "27.05.2019"
 print(len(simple_dict))
