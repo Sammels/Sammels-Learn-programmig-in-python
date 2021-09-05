@@ -21,7 +21,7 @@ print(simple_variable_list)
 # Задача 1
 simple_dict = {"city": "Москва", "temperature": 20}
 print(simple_dict["city"])
-simple_dict["temperature"] = 15
+simple_dict["temperature"] - 5
 print (simple_dict)
 
 # Задача 1.2
