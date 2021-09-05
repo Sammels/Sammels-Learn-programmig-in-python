@@ -25,7 +25,7 @@ simple_dict["temperature"] = 15
 print (simple_dict)
 
 # Задача 1.2
-simple_dict.get("country")
+simple_dict.setdefault("country")
 print(simple_dict.get("country", "Россия"))
 simple_dict["date"] = "27.05.2019"
 print(len(simple_dict))
