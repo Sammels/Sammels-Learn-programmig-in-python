@@ -15,23 +15,19 @@
     
 """
 
-questions_and_answers = {"Как дела": "Хорошо!", "Что делаешь?": "Программирую",
-                         "Кто лучше всех": "Я Лучше всех!"}
+questions_and_answers = {"Как дела?": "Хорошо!", "Что делаешь?": "Программирую",
+                         "Кто лучше всех?": "Я Лучше всех!"}
 
 def ask_user(answers_dict:dict)-> str:
     """
     Замените pass на ваш код
     """
     while True:
-        ask = input("""\nДобрый день, введите пожалуйста ваш вопрос.
-Например: Как дела, Что делаешь?, Кто лучше всех? Чтобы выйти нажмите q \n """)
+        ask = input("""Добрый день, введите пожалуйста ваш вопрос.
+Например: Как дела, Что делаешь?, Кто лучше всех? Чтобы выйти нажмите q \n""")
 
-        if ask == "Как дела":
-            print(questions_and_answers["Как дела"])
-        elif ask == "Что делаешь?":
-            print(questions_and_answers["Что делаешь?"])
-        elif ask == "Кто лучше всех":
-            print(questions_and_answers["Кто лучше всех"])
+        if ask in answers_dict.keys():
+            print ('\n',answers_dict[ask],'\n')
 
         elif ask =="q":
             break

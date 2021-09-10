@@ -33,7 +33,7 @@ def main()-> str:
     for score in school_99:
         ppl_in_school += len(score['scores'])
         sum_class_score = sum(score['scores']) / len(score['scores'])
-        sum_school_score+=sum_class_score / ppl_in_school
+        sum_school_score +=sum_class_score / ppl_in_school
 
         print(f'Средняя оценка по классу: {sum_class_score}')
         print(f'Средняя оценка по школе: {sum_school_score}')

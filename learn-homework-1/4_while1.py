@@ -11,9 +11,6 @@
 
 
 def hello_user()-> str:
-    """
-    Замените pass на ваш код
-    """
     while True:
         check_mood = input("Как дела? ")
         if check_mood.lower() == "хорошо":

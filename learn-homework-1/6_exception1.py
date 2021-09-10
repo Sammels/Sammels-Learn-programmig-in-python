@@ -11,14 +11,10 @@
 """
 
 def hello_user()-> str:
-    """
-    Замените pass на ваш код
-    """
-    
     while True:
         try:
             check_mood = input("Как дела? ")
-            if check_mood == "Хорошо" or check_mood == "хорошо":
+            if check_mood.lower() == "хорошо":
                 print("Славно. Хорошего дня!")
                 break
                 
