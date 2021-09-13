@@ -12,14 +12,11 @@
 -------------
 `/Repeat_task/` - Директория нахождениязадач на повторение
 
-`level 1`
-`level 2`
-`level 3`
 
-![]https://github.com/learnpythonru/basic_exercises
+----------
+`/Repeat_task/basic/` - Директория с Базовыми задачами
+
+
+![](https://github.com/learnpythonru/basic_exercises)
 
 -------------------------
-# Побочная задача
-1. Придумать идею проекта
-2. Описать цель, функционал, стэк.
- 
