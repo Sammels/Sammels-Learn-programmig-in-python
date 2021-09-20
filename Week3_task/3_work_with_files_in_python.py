@@ -27,7 +27,7 @@ def write_file() -> str:
     Берет текст из функции read_file и заменяет . на !
     '''
     with open('referat2.txt', 'w', encoding='utf-8') as wrt_file:
-        new_file = wrt_file.write(read_file().replace('.', '!'))
+        wrt_file.write(read_file().replace('.', '!'))
 
 
 if __name__ == "__main__":

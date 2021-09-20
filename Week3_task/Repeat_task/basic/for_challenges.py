@@ -14,8 +14,8 @@ print('\n')
 # Петя: 4
 print("Задача 2")
 names = ['Оля', 'Петя', 'Вася', 'Маша']
-for name in names:
-    print(f'{name}: {len(name)}')
+
+for name in names: print(f'{name}: {len(name)}')
 print()
 
 # Задание 3
@@ -50,10 +50,9 @@ groups = [
     ['Вася', 'Маша', 'Саша', 'Женя'],
     ['Оля', 'Петя', 'Гриша'],
 ]
-group_list = 0
-for ppl in groups:
-    group_list += 1
-    print(f'Группа {group_list}: {len(ppl)} ученика.')
+
+for ppl in enumerate(groups, start=1):
+    print(f'Группа {ppl[0]}: {len(ppl[1])} ученика.')
 print()
 
 # Задание 5

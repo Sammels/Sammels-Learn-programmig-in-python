@@ -90,17 +90,21 @@ is_male = {
     'Миша': True,
     'Даша': False,
 }
-for ppl in school:
+
+def check_ppl_in_school(school, is_male):
     boys_count = 0
     girl_count = 0
-    for student in ppl['students']:
-        for name in student.values():
-            if is_male[name]:
-                boys_count += 1
-            else:
-                girl_count += 1
+    for ppl in school:
+        for student in ppl['students']:
+            for name in student.values():
+                if is_male[name]:
+                    boys_count += 1
+                else:
+                    girl_count += 1
 
     print(f"В классе {ppl['class']} {girl_count} девочки и {boys_count} мальчика ")
+
+check_ppl_in_school(school,is_male)
 
 print()
 # Задание 5
@@ -120,17 +124,19 @@ is_male = {
     'Миша': True,
 }
 
+check_ppl_in_school(school,is_male)
+
 clases = {}
-for clas in school:
-    clases[clas["class"]] = {"boys_count": 0, "girls_count": 0}
-    boys_count = 0
-    girl_count = 0
-    for student in clas['students']:
-        for name in student.values():
-            if is_male[name]:
-                clases[clas["class"]]["boys_count"] += 1
-            else:
-                clases[clas["class"]]["girls_count"] += 1
+# for clas in school:
+#     clases[clas["class"]] = {"boys_count": 0, "girls_count": 0}
+#     boys_count = 0
+#     girl_count = 0
+#     for student in clas['students']:
+#         for name in student.values():
+#             if is_male[name]:
+#                 clases[clas["class"]]["boys_count"] += 1
+#             else:
+#                 clases[clas["class"]]["girls_count"] += 1
 clas_with_max_girl = ''
 max_boys = 0
 max_girls = 0
