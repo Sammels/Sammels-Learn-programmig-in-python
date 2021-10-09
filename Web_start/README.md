@@ -214,7 +214,7 @@ app = create_app()
 
 ```python
 with app.app_context():
-    username = imput('Введите имя пользователя: ')
+    username = input('Введите имя пользователя: ')
 
     if User.query.filter(User.username == username).count():
         print('Такой пользователь уже есть')
@@ -242,7 +242,7 @@ print('User with id {} added'.format(new_user.id))
 в `__init__.py`
 
 ```python
-from flask_login import LoginMager
+from flask_login import LoginManager
 from webapp.model import db, News, User
 
 def create_app():
