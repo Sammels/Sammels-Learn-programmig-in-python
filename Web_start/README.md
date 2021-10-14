@@ -364,3 +364,417 @@ class User(db.Model, UserMixin):
         return self.role == 'admin' and self.is_active
     
 ```
+
+## Week 7
+
+1. Функционал "Запоминания" пользователя
+2. Что такое Blueprint
+3. Создадим первый Blueprint
+4. Blueprint-ы для news и admin
+5. Наследование шаблонов
+6. Главное меню
+
+<b>Запускать через /blueprint/target </b>
+
+### 1. Функционал "Запоминания" пользователя
+
+Если пользователь авторизуется и закроет браузер, то при следующем входе ему придется делать это снова. Нужно реализовать Функционал Запоминания пользователя.
+Для этого в `forms.py` добавим поле:
+
+```python
+from wtforms import BooleanField, PasswordField, StringField, SubmitField
+
+class LoginForm(FlaskForm):
+    ...
+    remember_me = BooleanField('Запомнить меня', default=True, render_kw={"class": "form-check-input"})
+```
+
+В шаблоне `login.html` Добавим отображение нового поля:
+
+```html
+<div class="form-group form-check">
+    {{ form.remember_me() }}
+    {{ form.remember_me.label(class_='form-check-label') }}
+</div>
+```
+
+В `__init__.py` в `process_login():` добавить
+
+```python
+...
+if user and user.check_password(form.password.data):
+    login_user(user, remember=form.remember_me.data)
+```
+
+Длительность соххранения статуса авторизации настраивается через конфигурацию Flask
+
+```python
+from datetime import timedelta
+
+REMEMBER_COOKIE_DURATION = timedelta(days=5)
+```
+
+### 2. Что такое Blueprint? (Выполнено в webapp2.)
+
+`Blueprint` - стандартный метод разделения Flask-приложения на модули. Они помогают разбить большое приложение на несколько функциональных модулей и поддерживать удобную структуру именования URL
+
+1 из важных задач программиста, борьба со сложностью.
+Во Фласке модуль называется в ед.ч. Наполнение во множественном числе.
+
+
+Важно организовать код таким образом, чтобы в нем было легко разобраться,
+
+<b>Как будет устроено приложение.</b>
+
+Уже сейчас инит перегружен роутами. Выделение на модули
+
+1. `news` - Страница новостей
+2. `user` - Авторизация, регистрация, профиль пользователя
+3. `admin` - админка, для управления контентом, и пользователями.
+
+```
+webapp/
+    __init__.py
+    config.py
+    db.py
+    user/
+        __init__.py
+        forms.py
+        models.py
+        views.py
+    templates/
+        base.html
+        user/
+            login.html
+            registration.html
+```
+Начало с `user` - там больше всего функционала. `__init__.py` пустой, будет говорить питону, что это модуль.
+`forms.py` - Формы для работы с пользователями.
+`models.py` - Модель Юзера
+`views.py` - Роуты которые относятся к user. Возможность для дальнейшего.
+
+`templates` - где логин, индекс
+`base.html` - Шаблон, который будет отвечать за базувую верстку. Одинаковый код будет перенесен в базовый шаблон, все остальные шаблоны будут от него наследовать.
+В templates будет `название blueprinta`  относящиеся к нему.
+`login.html`
+`regostration.html`
+
+
+Кроме `user` будет blueprint `admin`.
+
+Благодаря стандартизации будет все достаточно легко понять.
+
+### 3. Создадим первый Blueprint
+
+`Каждый blueprint находится в отдельной папке.`
+
+1. Создадим `user` а в ней файлы: `__init__.py, forms.py, models.py, views.py`  - Done
+
+2. В `forms.py` перенесем код формы логина и удалим файл `forms.py` в корне приложения.
+В `models.py` перенесем код модели User
+
+
+В `views.py` пеенесем login(), progress_login(), logout(), в начало добавим код:
+
+```python
+from flask import Blueprint
+
+blueprint = Blueprint('user', __name__m url_prefix='/users')
+```
+
+Так же нужно будет пройти по коду и поменять `url_for('login')` на `url_for('user.login')` и поправить import.
+
+Теперь надо пройти по коду и поменять 
+`@app.route` на  `@blueprint.route`
+`url_for('login')` на `url_for('user.login')`
+
+Готовый blueprint подключается в приложение:
+
+```python
+from webapp2.user.views import blueprint as user_blueprint
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_pyfile('config.py')
+    db.init_app(app)
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'login'
+    app.register_blueprint(user_blueprint)
+
+...
+
+@blueprint.route("/logout")
+def logout():
+    # Реализация окончание сессии
+    logout_user()
+    flash("Вы успешно разлогинились")
+    return redirect(url_for("news.index"))
+```
+
+### 4 - Blueprint-ы для news и admin
+- В папке `webapp2` создаем папку `admin` в неё кладем `__init__.py` 
+- В папке `webapp2/admin` создаем `views.py` и добавляем:
+
+```python
+from flask import Blueprint
+from flask_login import current_user, login_required
+
+blueprint = Blueprint('admin', __name__, url_prefix='/admin')
+
+@blueprint.route('/')
+@login_required
+def admin_index():
+    if current_user.is_admin:
+        return "Привет админ"
+    else:
+        return "Ты не админ"
+```
+
+- В `webapp2/__init__.py` добавить
+```python
+...
+from webapp2.admin.views import blueprint as admin_blueprint
+...
+def create_app():
+    ...
+    # Регистрация БП
+    ...
+
+    app.register_blueprint(admin_blueprint)
+```
+
+В `webapp2/news` создаем `__init__.py`, `models.py`, `views.py`
+
+- В `news/models.py` переносим из `webapp2 models.py`
+```python
+from webapp2.model import db
+
+class News(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String, nullable=False)
+    url = db.Column(db.String, unique=True, nullable=False)
+    published = db.Column(db.DateTime, nullable=False)
+    text = db.Column(db.Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return "<News {} {}".format(self.title, self.url)
+
+```
+
+- В `news/views.py`
+```python
+"""
+Работа с блюпринтами
+"""
+from flask import Blueprint, current_app, render_template
+
+from webapp2.news.models import News
+from weather2 import weather_by_city
+
+
+# Основной роутинг. Префикса не будет
+blueprint = Blueprint('news', __name__)
+
+@blueprint.route("/")
+def index() -> str:
+    page_title = "Новости Python"
+    weather = weather_by_city(current_app.config["WEATHER_DEFAULT_CITY"])
+    news_list = News.query.order_by(News.published.desc()).all()
+    return render_template(
+        "index.html", title=page_title, weather=weather, news_list=news_list
+    )
+
+
+```
+- в `webapp2/__init__.py` добавляется 
+
+```python
+from webapp2.news.views import blueprint as news_blueprint
+...
+
+def create_app():
+    ...
+    app.register_blueprint(news_blueprint)
+```
+
+- Если в друг все в одной папке то 
+```python
+from getpass import getpass
+import sys
+
+from webapp2 import create_app
+from webapp2.db import db
+from webapp2.news.models import User
+
+app = create_app()
+
+with app.app_context():
+    # Запрашиваем имя пользователя в cmd
+    username = input("Введите имя пользователя: ")
+    # Проверка существует ли такой пользователь
+    if User.query.filter(User.username == username).count():
+        print("Такой пользователь уже есть")
+        # Используя sys выходим из нашей программы
+        sys.exit(0)
+
+    password1 = getpass("Введите пароль: ")
+    password2 = getpass("Повторите пароль: ")
+    if not password1 == password2:
+        print("Разные пароли")
+        sys.exit(0)
+
+    new_user = User(username=username, role="admin")
+    new_user.set_password(password1)
+
+    db.session.add(new_user)
+    db.session.commit()
+    print("Создан пользователь с id={}".format(new_user.id))
+
+```
+
+### 5 - Наследование шаблонов
+В шаблонах много повторяющегося кода. Его нужно вынести в шаблон `base.html` и все остальные шаблоны будут содержать только специфичный для данного шаблона.
+
+- Создаем `base.html` из `index.html`
+
+```html
+  <div class="container">
+    <h1>{{ title }}</h1>
+    {% block content %}
+    {% endblock %}
+
+  </div>
+```
+За основу возмем наш index.html и вместо контентной части шаблона напишем
+```
+{% block content %}
+{% endcontent %}
+```
+- Контент страницы пока скопируем в отдельный файл, назовем его `index.html` и сохраним в `templates/news/`
+
+<b>Поменяем шаблон главной страницы</b>
+В шаблоне index.html заключим `<div class="row">...</div>` в код `{% block content %}...{% endblock %}`
+
+```html
+{% extends "base.html" %}
+{% block content %}
+    <div class="row">
+      <div class="col-8">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+          <div class="alert alert-warning" role="alert">
+            {% for message in messages %}
+                {{ message }}<br>
+            {% endfor %}
+          </div>
+          {% endif %}
+        {% endwith %}
+        <h2>Новости</h2>
+        {% for news in news_list %}
+        <h3><a href="{{news.url}}">{{news.title}}</a></h3>
+        <p>{{news.published}}</p>
+        <hr/>
+        {% endfor %}        
+      </div>
+      <div class="col-4">
+        <h2> Прогноз погоды</h2>
+        {% if weather %}
+          {{ weather.temp_C }}, ощущается как {{ weather.FeelsLikeC }}
+        {% else %}
+          Сервис погоды недоступен
+        {% endif %}
+      </div>
+    </div>
+{% endblock %}
+```
+
+- В начале файла добавим строку `{% extends "base.html" %}`
+
+- А в `news.views.index` поменяем название шаблона в функции `render_template` с `index.html` на `news/index.html`
+
+```python
+"""
+webapp2/news/views.py
+"""
+...
+return render_template(
+        "news/index.html", title=page_title, weather=weather, news_list=news_list
+    )
+```
+
+### 6 - Главное меню
+
+Используем стандартный компонент <b>Navbar</b> из библиотеки Bootstrap.
+Самый простой вариант - скопировать html-код. компонент и вставить base.html
+
+1. Создаем файл `templates/menu.html`, скопируем туда код компонента и в base.html добавте строку.
+`{% include 'menu.html' %}`
+
+Копия навбара
+```html
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <a class="navbar-brand" href="#">Новости</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item active">
+        <a class="nav-link" href="/">Главная страница</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{url_for('user.login')}}">Логин</a>
+      </li>
+    </ul>
+    <form class="form-inline my-2 my-lg-0">
+      <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
+      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Искать</button>
+    </form>
+  </div>
+</nav>
+```
+### 7 - Создание декаратора @admin_required
+
+`Декоратор` - Функция-обертка которая позволяет выполнять какие-то действия перед вызовом декорируеой функции не изменяя её.
+
+Например декоратор `@login_required` проверяет, что пользователь авторизован и если нет - перенаправляет на страницу логина не вызывая декорируемую функцию. А если пользователь авторизован, то декорируемая функция вызывается "Прозрачно", как будто декоратора нет.
+
+
+- Сделаем собственный декоратор @admin_required
+
+Сначала посмотрим как устроен декаратор `@login_required`
+
+Мы видим, что внутри конструкция if/elif которая проверяет, авторизован ли пользователь. Если да, то функция вызывает декорируемую функцию `return func(*args, **kwargs)`. Чтобы сделать
+
+- Сделаем собственный декоратор
+Создадим файл `user/decorators.py` и доавим туда импорты.
+
+Декораторы хранятся в соответствующейм Blueprint
+
+```python
+from functools import wraps
+
+from flask import current_app, flash, request, redirect, url_for
+from flask_login import config, current_user
+```
+
+- Сделаем собственный декоратор
+
+```python
+def admin-required(func):
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        if request.method in config.EXEMPT_METHODS:
+            return func(*args, **kwargs)
+        elif current_app.config.get('LOGIN_DISABLED'):
+            return func(*args, **kwargs)
+        elif not current_user.is_authenticated:
+            return current_app.login_manager.unauthorized()
+        elif not current_user.is_admin():
+            flash('Эта страница тебе не доступна.')
+            return redirect(url_for('news.index'))
+        return func(*args, **kwargs)
+    return decorated_view
+```
