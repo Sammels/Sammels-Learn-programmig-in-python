@@ -172,3 +172,4 @@ def save_news(title, url, publushed):
         db.session.add(news_news)
         db.session.commit()
 ```
+

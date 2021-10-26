@@ -1,21 +1,12 @@
+"""
+Идет работа с Blueprints
+
+"""
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_sqlalchemy import SQLAlchemy
 
-
-db = SQLAlchemy()
-
-
-class News(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String, nullable=False)
-    url = db.Column(db.String, unique=True, nullable=False)
-    published = db.Column(db.DateTime, nullable=False)
-    text = db.Column(db.Text, nullable=True)
-
-    def __repr__(self) -> str:
-        return "<News {} {}".format(self.title, self.url)
-
+# Импорт дб из модел
+from webapp2.db import db
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
