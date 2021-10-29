@@ -1129,3 +1129,59 @@ upgrade:
     </ul>
 ```
 
+### 7. Дополнительные проверки в форме.
+<h1>Дополнительные проверки</h1>
+
+<p>Если пользователь при регистрации укажет имя которое уже есть в системе, то мы получим ошибку данных. Добавим собственные валидаторы для полей формы. Валидатор-это просто метод класса формы, имя которого строится как `validate_ПОЛЕ`, например `validate_email`. В случае ошибки валидатор должен выкидывать исключение `wtforms.validators.ValidationError`</p>
+
+```python
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
+from webapp2.user.models import User
+```
+
+- Файл дополняется в `webapp2/user/forms.py`
+
+```python
+class RegistrationForm(FlaskForm):
+    ...
+
+    def validate_username(self, username):
+        users_count = User.query.filter_by(username=username.data).count()
+        if users_count > 0:
+            raise ValidationErroe('Пользователь с таким именем уже зарегестрирован')
+
+    def validate_email(self,email):
+        users_counts = User.query.filter_by(email=email.data).count()
+        if users_count > 0:
+            raise ValidationError('Пользователь с такой электронной почтой уже зарегестрирован')
+
+```
+
+<h1>Вывод ошибок в шаблоне.</h1>
+
+- Будем передавать ошибки в форме при помощи `flash`
+
+```python
+def process_reg():
+    ...
+else:
+    for field, errors in form.errors.items():
+        for errors in errors:
+            flash('Ошибка в поле "{}": - {}'.format(getattr(form, field).label.text, errors
+            ))
+    return redirect(url_for('user.register'))
+```
+
+- Далее в `webapp2/user/register.html`
+
+```html
+  {% with message = get_flashed_messages() %}
+    {% if messages %}
+      {% for message in messages %}
+      <div class="alert alert-danger" role="alert">
+          {{ message }}
+      </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+```
