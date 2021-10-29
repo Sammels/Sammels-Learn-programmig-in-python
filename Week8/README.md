@@ -531,3 +531,4 @@ class Employee(Base):
 
 company = relationship("Company", lazy="joined")
 ```
+

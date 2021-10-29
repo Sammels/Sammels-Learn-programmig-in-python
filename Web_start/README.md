@@ -779,3 +779,353 @@ def admin-required(func):
     return decorated_view
 ```
 
+-------------------------------------
+
+## Week 8 
+-------------------------------
+1. Скрипт для запуска приложений
+2. Что такое миграции
+3. Создаем первую миграцию
+4. Добавим поле в модель
+5. Регистрация пользователей
+6. Работа пользователей в шаблоне
+7. Дополнительные проверки в форме
+-----------------------------------
+
+### 1. Скрипт для запуска приложений.
+-------------
+
+Скрипты для запуска
+
+`.bat` - Для Windows
+`.sh` - Для линукс и MacOs
+
+----------------
+
+#### Скрипт для Windows
+В Корне проекта создается `run.bat` с добавлением
+`set FLASK_APP=webapp2 && set FLASK_ENV=development && set FLASK_DEBUG=1 && flask run`
+
+Для запуска проекта можно просто написать в консоли `run.bat`
+
+-------------------
+
+#### Скрипт для Linux/MacOs
+
+- В корне созд. файл `run.sh`:
+
+```bash
+#!/bin/sh
+export FLASK_APP=webapp2 && export FLASK_ENV=development && flask run
+```
+- После сохранения кода выполнить
+`chmod +x run.sh` - Это сделает файл исполняемым.
+`./run.sh` - Запуск скрипта. 
+`/` - из этой директории
+----------------
+
+### 2. Что такое миграции
+------------
+
+При внесении изменений в модели - эти изменения не появятся в базе данных сами собой.
+
+`Миграции` - python скрипты, которые вносят изменения в нашу бд автоматически.
+
+<h1>Flask-Migrate</h1>  позволяет отслеживать изменения в моделях, и генерировать скрипты миграции автоматически. Пакет построен на базе Alembic - системы миграции для SQLAlchemy.
+
+- Добавление в модель новового поля user.models.User
+
+```python
+...
+
+class User(db.Model, UserMixin):
+    ...
+
+    email = db.Column(db.String(50), unique=True)
+```
+
+--------------------
+
+### 3. Создаем первую миграцию
+
+<h1>Включим поддержку миграций</h1>
+
+1. Добавить в `__init__.py`
+
+```python
+from flask-migrate import Migrate
+...
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_pyfile('config.py')
+    db.init_app(app)
+    migrate = Migrate(app, db)
+```
+
+Внесем изменения в файл конфигураации.
+`config.py`
+
+`SQLALCHEMY_TRACK_MODIFICATIONS = False`
+
+<h1>Инициализируем механизм миграций.</h1>
+
+Для работы Flask-Migrate нужно создать нескольколь файлов и папок. Процесс автоматизирован, нам нужно выполнить команду:
+
+Linux и Mac: `export FLASK_APP=webapp2 && flask db init`
+Windows: `set FLASK_APP=webapp2 && flask db init`
+
+<h1>Создадим первую миграцию</h1>
+
+У нас создана база данных, поэтому чтобы посмотреть как работают миграции, переиминуем нашу бд
+`webapp2.db`
+
+Linux и Mac: `mv webapp.db webapp.db.old`
+
+Windows: `move webapp.db webapp.db.old`
+
+<h1>Создадим первую миграцию.</h1>
+
+Linux и Mac: `export FLASK_APP=webapp2 && flask db migrate -m "users and news tables"`
+
+Windows: `set FLASK_APP=webapp2 && flask db migrate -m "users and news tables"`
+
+В `migrations/versions/`  появился первый файл вида `hex_users_and_news_table.py` внутри в секции `upgrade()` написан код для создания таблиц.
+
+В секции `downgrade()` прописано удаления таблиц.
+
+<h1>Примение миграции.</h1>
+
+Миграция применяется командой `flask db upgrade` и если мы выполним её, то появится новый файл webapp.db. Там будет правиоьная структура, но не будет даннх. 
+Теперь файл `create_db.py` не нужен, можно удалить.
+
+Сделаем очередной мув.
+
+`mv webapp.db.old webapp.db`
+
+<h1>Миграции и существующие таблицы.</h1>
+У нас есть база со структурой и данными. Если мы попробуем выполнить миграцию на ней, то получим mv/move. 
+Усли мы попробуем выполнить миграцию, то получим ошибку.
+Чтобы работать с миграциями на существующей базе, нам нужно пометить нашу миграцию как выполненную командой `flask db stamp hex`.
+
+Если мы теперь увидим что там появилась новая таблица `alembic_version`
+
+------------------------
+
+### 4. Добавим поле в модель User
+
+Для того, чтобы добавить на сайт регистрацию, нам понадобится поле `email` в модели `User`:
+
+```python
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, promary_key=True)
+    username = db.Column(dn.String(50), index=True, unique=True)
+    password = db.Column(db.String(128))
+    role = db.Column(db.String(10), index=True)
+    email = db.Column(db.String(50))
+```
+
+Создадим миграцию и выполним ее.
+
+`flask db migrate -m "added email to user"`
+
+`flask db upgrade`
+
+Зайдем в базу данных и проверим, что в таблице `user` появилось новое поле.
+
+------------------
+
+### 5. Регистрация пользователей
+
+Форма регистрации похожа на форму логина, но мы добавим пару доп. полей.
+
+```python
+class RegistrationForm(FlaskForm):
+    username = StringField('Имя Пользователя', validators=[DataRequired()], render_kw={"class": "form-control"})
+    email = StringField('Email', validators=[DataRequired()],
+        render_kw={"class": "form-control"})
+    password = PasswordField('Пароль', validators=[DataRequired()],
+        render_kw={"class": "form-control"})
+    password2 = PasswordField('Повтори пароль', validators=[DataRequired()],
+        render_kw={"class": "form-control"})
+    submit = SubmitField('Отправить', render_kw={"class": "btn btn-primary"})
+```
+
+<h1>Добавим пару стандартных валидаторов</h1>
+
+Ранее был использован валидатор `DataRequired`, который проверя, что поле не пустое. Добавим валидаторы `Email` и `EqualTo` - они проверяют, что значение одного поля идентично значению другого.
+
+```python
+from wtforms.validators import DataRequired, Email, EqualTo
+...
+
+email = StringField('Email', validators=[DataRequired(), Email()],
+    render_kw={"class": "form-control"})
+password = PasswordField('Пароль', validators=[DataRequired()], 
+    render_kw={"class": "form-control"})
+password2 = PasswordField('Пароль', validators=[DataRequired(), EqualTo('password')],render_kw={"class": "form-control"})
+
+```
+
+<h1>Добавим шаблон</h1>
+
+Скопируем файл `templates/user/login.html` как `templates/user/registration.html` и поменяем форму под наши поля.
+
+```html
+{% extends "base.html" %}
+{% block content %}
+    <div class="row">
+      <div class="col-4">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+          <div class="alert alert-warning" role="alert">
+            {% for message in messages %}
+              {{ message }}<br>
+            {% endfor %}
+          </div>
+          {% endif %}
+        {% endwith %}
+        <form action="{{url_for('user.process_login')}}" method="post">
+          {{ form.hidden_tag() }}
+          <div class="form-group">
+            {{ form.username.label }}
+            {{ form.username() }}
+          </div>
+          <div class="form-group">
+            {{ form.email.label }}
+            {{ form.email() }}
+          </div>
+          <div class="form-group">
+            {{ form.password.label }}
+            {{ form.password() }}
+          </div>
+          <div class="form-group">
+            {{ form.password2.label }}
+            {{ form.password2() }}
+          </div>
+          {{ form.submit() }}         
+        </form>
+           
+      </div>
+      <div class="col-8">
+
+      </div>
+    </div>
+{% endblock %}
+
+```
+
+
+<h1>Cтраница регистрации</h1>
+
+<p>Сделана форма и шаблон, но чтобы все заработало, нужно добавить соответствующие route-ы и функции обработчики. Первая функция будет просто показыавть форму регистрации.</p>
+
+Открываем User/views.py
+
+```python
+from webapp2.db import db
+from webapp2.user.forms import LoginForm, RegistrationForm
+```
+
+- Функция регистрации
+
+```python
+@blueprint.route('/register')
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('news.index'))
+    form = RegistrationForm()
+    title = "Регистрация"
+    return render_template('user/registration.html', page_title=title, form=form)
+```
+
+<h1>Обработчик регистрации</h1>
+
+```python
+@blueprint.route('/process-reg', methods=['POST'])
+def process_reg():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        new_user = User(username=form.username.data, email=form.email.data, role='user')
+        new_user.set_password(form.password.data)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Вы успешно зарегестрировались!')
+        return redirect(url_for('user.login'))
+    flash('Пожалуйста, исправьте ошибки в форме')
+    return redirect(url_for('user.register'))
+```
+
+----------------
+
+### 6. Работа с пользовательскими шаблонами.
+<h1>Работа с  пользователем в шаблоне.</h1>
+
+<p>Flask-Login дает нам возможность обращатся к `current_user` в шаблоне:</p>
+menu -> login->
+
+```html
+{% if current_user.is_authenticated %}
+    <a class="nav-link" href="{{ url_for('user.logout') }}"> Выйти </a>
+{% else %}
+    <a class="nav-link" href="{{url_for('user.login')}}"> Войти </a>
+{% endif %}
+```
+
+- Поправим код согласно канону
+
+```html
+...
+
+ <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item active">
+        <a class="nav-link" href="/">Главная страница</a>
+      </li>
+
+    </ul>
+    <form class="form-inline my-2 my-lg-0">
+      <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
+      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Искать</button>
+    </form>
+    <ul class="navbar-nav">
+        <li class="nav-item">
+        {% if current_user.is_authenticated %}
+        <a class="nav-link" href="{{ url_for('user.logout') }}"> Выйти </a>
+        {% else %}
+        <a class="nav-link" href="{{url_for('user.login')}}"> Войти </a>
+        {% endif %}
+        
+      </li>
+      
+    </ul>
+  </div>
+```
+upgrade:
+
+```html
+<ul class="navbar-nav">
+        {% if current_user.is_authenticated %}
+        <li class="nav-item">
+            <span class="nav-link">Привет, {{ current_user.username }}</span>
+        </li>
+        {% if current_user.is_admin %}
+        <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('admin.admin_index') }}"> Админка </a>
+        </li>
+        {% endif %}
+        <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('user.logout') }}"> Выйти </a>
+        </li>
+        {% else %}
+        <li class="nab-item">
+            <a class="nav-link" href="{{ url_for('user.register') }}"> Регистрация </a>
+        </li>
+        <li class="nab-item">
+            <a class="nav-link" href="{{url_for('user.login')}}"> Войти </a>
+        </li>
+        {% endif %}
+      
+    </ul>
+```
+
