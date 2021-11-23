@@ -1185,3 +1185,384 @@ else:
     {% endif %}
   {% endwith %}
 ```
+
+
+## Week 9
+1. Создадим отдельный модуль для получения новостей
+2. Соберем сниппеты с Хабрхабр
+3. Обработаем тексты новостей
+4. Рассмотрим страницы статей на сайте
+5. Знакомство с Celery
+6. Узнаем о выполнении задач по расписанию.
+
+### 1. Создадим отдельный модуль для получения новостей
+<p>Реализация сбора новостей с хабра.</p>
+
+#### Разобьем процесс на несколько шагов.
+1. Получение страницы со списком новостей.
+2. Сбор с неё ссылок на новости.
+3. Проверка, каих новостей у нас еще нет.
+4. СБор полного текста для каждой новости.
+
+
+#### Сделаем отдельный модуль для сбора новостей.
+Мы услужняем сбор новостей и возможно будем собирать новости из разных из
+разных источников. Создадим папку `webapp2/news/parsers/` и вней `__init__.py`,
+`utils.py`, `habr.py`.
+
+
+---------------
+
+<h1>User-Agent</h1>
+<p>Браузер делает запрос к сайту, он "представляется" отправляяя заголовок User-Agent. Либа requests по-умолчанию "представляется" как python-requests и некоторые сайты могут ограничить доступ к своему контенту по этому признаку.</p>
+
+<p>Библиотека requests дает нам возможность посылать свои header-ы.
+Скопируем значение User-Agent из браузера, и будем подставять при запросе.</p>
+
+
+<h1>Добавим User-Agent в get_html</h1>
+
+headers - Просто словарь.
+
+```python
+def get_html(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:65.0) Gecko/20100101 Firefox/65.0'
+    }
+    try:
+        result = requests.get(url, headers=headers)
+        ...
+```
+
+#### Сбор сниппетов новостей
+<p>Собираем `title`, `url`, `Дату новостей`,  и кладываем их в БД.</p>
+
+`habr.py`
+
+
+```python
+from bs4 import BeautifulSoup
+from datetime import datetime
+
+
+from webapp2.news.parsers.utils import get_html, save_news
+```
+
+<h1><Перепишем <b>get_habr_snippets</b></h1>
+
+`Сниппеты` - Небольшой новостной блок
+
+
+```python
+from bs4 import BeautifulSoup
+
+from webapp2.news.parsers.utils import get_html, save_news
+
+def get_habr_snippets() -> str:
+    html = get_html(
+        "https://habr.com/ru/search/?q=Python&target_type=posts&order=date"
+    )
+    if html:
+        soup = BeautifulSoup(html, "html.parser")
+        all_news = soup.find("div", class_="tm-articles-list").findAll("div", class_="tm-article-snippet")        
+        for news in all_news:
+            title = news.find("a", class_="tm-article-snippet__title-link").text
+            url = news.find("a", class_="tm-article-snippet__title-link")["href"]
+            published = news.find("span", class_="tm-article-snippet__datetime-published").text
+            print(title, url, published)
+
+
+```
+
+### 2. Соберем сниппеты с Хабрхабр
+
+<b>Выставим русскоязычную локаль для распознования даты.</b>
+
+`habr.py`
+Выставление локали отличается на Mac/Linux и Windows
+
+```python
+from datetime import datetime, timedelta
+import locale
+import platform
+
+if platform.system() == 'Windows':
+    locale.setlocale(locale.LC_ALL, "russian")
+else:
+    locale.setlocale(locale.LG_TIME, 'ru_RU')
+
+```
+
+<b>Напишем функцию Перевода даты</b>
+
+```python
+def parse_habr_date(date_str):
+    if 'сегодня' in date_str:
+        today = datetime.now()
+        date_str = date_str.replace('сегодня', today.strftime('%d %B %Y'))
+    elif 'вчера' in date_str:
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = date_str.replace('вчера', yesterday.strftime('%d %B %Y'))
+    try:
+        return datetime.strptime(date_str, '%d %B %Y в %H:%M')
+    except ValueError:
+        return datetime.now()
+```
+
+<b>Измененный скрипт `habr.py` </b>
+
+```python
+from datetime import datetime, timedelta
+import locale
+import platform
+from bs4 import BeautifulSoup
+
+from webapp2.news.parsers.utils import get_html, save_news
+
+if platform.system() == "Windows":
+    locale.setlocale(locale.LC_ALL, "russian")
+else:
+    locale.setlocale(locale.LC_TIME, "ru_RU.UTF-8")
+
+
+def parse_habr_date(date_str):
+    if "сегодня" in date_str:
+        today = datetime.now()
+        date_str = date_str.replace("сегодня", today.strftime("%d %B %Y"))
+    elif "вчера" in date_str:
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = date_str.replace("вчера", yesterday.strftime("%d %B %Y"))
+    try:
+        return datetime.strptime(date_str, "%d %B %Y в %H:%M")
+    except ValueError:
+        return datetime.now()
+
+
+def get_habr_snippets() -> str:
+    html = get_html("https://habr.com/ru/search/?q=Python&target_type=posts&order=date")
+    if html:
+        soup = BeautifulSoup(html, "html.parser")
+        all_news = soup.find("div", class_="tm-articles-list").findAll(
+            "div", class_="tm-article-snippet"
+        )
+        for news in all_news:
+            title = news.find("a", class_="tm-article-snippet__title-link").text
+            url = news.find("a", class_="tm-article-snippet__title-link")["href"]
+            published = news.find(
+                "span", class_="tm-article-snippet__datetime-published"
+            ).text
+            published = parse_habr_date(published)
+            save_news(title, 'https://habr.com'+ url, published)
+
+```
+
+### 3. Обработаем тексты новостей
+<p>Получение текстов новостей</p>
+
+Последовательность действий.
+1. Возьмем из базы все новости, у которых пустой `text`
+2. Для каждой новости сделаем запрос на `url`
+3. Получим html и выберем из него текст новости
+4. Сохраним текст в новости в базу.
+
+
+<b>Получим список новостей, у которых нет текста</b>
+Простой запрос к базе данных, если мы не добавляли текст, значит в поле будет `NULL` и мы сможем обратиться к таким полям через is_(None)
+
+```python
+def get_news_content():
+    news_without_text = News.query.filter(News.text.is_(None))
+    for news in news_without_text:
+        html = get_html(news.url)
+```
+
+<b>Получим текст статьи и сохраним его</b>
+Мы будем испольщовать `decode_contents`
+
+```python
+if html:
+    soup = BeautifulSoup(html, 'html.parser')
+    article = soup.find('div', class_='post__text-html').decode_contents()
+    if article:
+        news.text = article
+        db.session.add(news)
+        db.session.commit()
+```
+
+### 4. Рассмотрим страницы статей на сайте
+
+Добавим view для статей и проставим наних ссылки с главной
+
+```python
+from flask import abort, Blueprint, current_app, render_template
+
+@blueprint.route('/news/<int:news_id>')
+def single_news(news_id):
+    my_news = News.query.filter(News.id == news_id).first()
+    if not my_news:
+        abort(404)
+
+    return render_template('news/single_news.html', page_title=my_news.title, news=my_news)
+```
+
+<b>Поправим стили</b>
+
+```css
+.news-content img {
+    max-wodth: 100%
+}
+```
+
+
+И подключим его в `base.html`
+`<link rel="stylesheet" href={{url_for('static', filename='style.css')}}`
+
+<b>Добавим форматирование кода.</b>
+```html
+<link rel="stylesheet"
+href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/styles/default.min.css">
+<script
+src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/highlight.min.js">
+</script>
+<script>hljs.initHighlightingOnLoad();</script>
+```
+
+<b>Ссылки на страницы</b>
+Замена ссылок новостей.
+Змена в `index.html`
+
+`href="{{ url_for('news.single_news', news_id=news.id) }}"`
+
+Измененный `news/views.py`
+
+```python
+"""
+Работа с блюпринтами
+"""
+from flask import abort, Blueprint, current_app, render_template
+
+from webapp2.news.models import News
+from weather2 import weather_by_city
+
+
+# Основной роутинг. Префикса не будет
+blueprint = Blueprint("news", __name__)
+
+
+@blueprint.route("/")
+def index() -> str:
+    page_title = "Новости Python"
+    weather = weather_by_city(current_app.config["WEATHER_DEFAULT_CITY"])
+    news_list = News.query.filter(News.text.isnot(None)).order_by(News.published.desc()).all()
+    return render_template(
+        "news/index.html", title=page_title, weather=weather, news_list=news_list
+    )
+
+@blueprint.route('/news/<int:news_id>')
+def single_news(news_id):
+    my_news = News.query.filter(News.id == news_id).first()
+    if not my_news:
+        abort(404)
+
+    return render_template('news/single_news.html', page_title=my_news.title, news=my_news)
+```
+
+### 5. Знакомство с Celery
+Сейчас сбор проиходит в ручную. Нам необходимо автоматизировать сбор. 
+Celery наш выбор
+
+Он используется в проекта, когда нужно выполнять задачи асинхронно (не занимая время веб-сервера) или запускать их по расписанию.
+
+<b>Установка зависимостей</b>
+Для работы понадобится установить Redis. Redis бд типа ключ-значение, которую Celery будет использовать для хранения очереди задач.
+
+Инсталл
+`apt-get install redis-server`
+
+<b>Установка Celery</b>
+`pip install calery[redis]`
+
+<b>Создадим тестовый таск</b>
+Такс - функция, обернутая в декоратор `celery.task`. Такую функцию можно вызвать напрямую, так и передавать на исполнение Celery при помощи метода `delay()`
+
+
+<b>Создадим тестовй таск</b>
+Создадим `tasks.py` в корне проекта и сделаем таск, который складывает два числа:
+
+```python
+from celery import Celery
+
+celery_app = Celery('tasks', broker='redis://localhost:6379/0')
+
+@celery_app.task
+def add(x, y):
+    print(x + y)
+```
+
+<b>Запустим Celery</b>
+
+<b>Linux/Mac - </b> `celery -A tasks worker --loglevel=info`
+
+<b>Windows - </b> `set FORKED_BY_MULTIPROCESSING=1 && celery -A tasks worker --loglevel=info`
+
+
+Чтобы начало работать надо добвить
+```python
+from tasks import add
+
+add.delay(234,234)
+```
+
+`add.delay` производит асинхронный вызов.
+
+
+### 6. Выполнение задач по расписанию.
+
+```python
+from webapp2 import create_app
+from webapp2.news.parsers import habr
+
+flask_app = create_app()
+
+@celery_app.task
+def habr_snippets():
+    with flask_app.app_context():
+        habr.get_news_snippets()
+
+
+@celery_app.task
+def habr_content():
+    with flask_app.app_context():
+        habr.get_news_content()
+
+
+```
+
+Открываем второе окно терминала и переходим по дерикториям до проекта
+в нем включаем python
+```python
+>>> from tasks import habr_snippets
+
+>>> habr_snippets.delay()
+```
+
+<b>Автозапуск по времени</b>
+
+Используем модуль `cron` из celery и добавим при запуске celery расписание.
+
+```python
+from celery.schedules import crontab
+
+@celery_app.on_after_configure.connect
+def setup_periodic_tasks(sender, **kwargs):
+    sender.add_periodic_task(crontab(minute='*/1'), habr_snippets.s())
+```
+
+<b>Запустим Celery-beat</b>
+<p>Celery-beat - запускает работу задач по расписанию. Он следит за расписанием и отправляет задачи worker-am. Beat нужно запускать отдельно, пожтому понадобится еще одно окно терминала.</p>
+
+`celery -A tasks beat`
+
+
+Если проект простой, можно использовать такое:
+`celery -A tasks worker -B --loglevel=INFO`

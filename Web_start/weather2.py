@@ -30,7 +30,7 @@ def weather_by_city(city_name: str) -> str:
                 except(IndexError, TypeError):
                     return False
 
-    except(requests.RequstException, ValueError):
+    except(requests.RequestException, ValueError):
         return False
     return False
 
