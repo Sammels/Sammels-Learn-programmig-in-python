@@ -778,3 +778,791 @@ def admin-required(func):
         return func(*args, **kwargs)
     return decorated_view
 ```
+
+-------------------------------------
+
+## Week 8 
+-------------------------------
+1. Скрипт для запуска приложений
+2. Что такое миграции
+3. Создаем первую миграцию
+4. Добавим поле в модель
+5. Регистрация пользователей
+6. Работа пользователей в шаблоне
+7. Дополнительные проверки в форме
+-----------------------------------
+
+### 1. Скрипт для запуска приложений.
+-------------
+
+Скрипты для запуска
+
+`.bat` - Для Windows
+`.sh` - Для линукс и MacOs
+
+----------------
+
+#### Скрипт для Windows
+В Корне проекта создается `run.bat` с добавлением
+`set FLASK_APP=webapp2 && set FLASK_ENV=development && set FLASK_DEBUG=1 && flask run`
+
+Для запуска проекта можно просто написать в консоли `run.bat`
+
+-------------------
+
+#### Скрипт для Linux/MacOs
+
+- В корне созд. файл `run.sh`:
+
+```bash
+#!/bin/sh
+export FLASK_APP=webapp2 && export FLASK_ENV=development && flask run
+```
+- После сохранения кода выполнить
+`chmod +x run.sh` - Это сделает файл исполняемым.
+`./run.sh` - Запуск скрипта. 
+`/` - из этой директории
+----------------
+
+### 2. Что такое миграции
+------------
+
+При внесении изменений в модели - эти изменения не появятся в базе данных сами собой.
+
+`Миграции` - python скрипты, которые вносят изменения в нашу бд автоматически.
+
+<h1>Flask-Migrate</h1>  позволяет отслеживать изменения в моделях, и генерировать скрипты миграции автоматически. Пакет построен на базе Alembic - системы миграции для SQLAlchemy.
+
+- Добавление в модель новового поля user.models.User
+
+```python
+...
+
+class User(db.Model, UserMixin):
+    ...
+
+    email = db.Column(db.String(50), unique=True)
+```
+
+--------------------
+
+### 3. Создаем первую миграцию
+
+<h1>Включим поддержку миграций</h1>
+
+1. Добавить в `__init__.py`
+
+```python
+from flask-migrate import Migrate
+...
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_pyfile('config.py')
+    db.init_app(app)
+    migrate = Migrate(app, db)
+```
+
+Внесем изменения в файл конфигураации.
+`config.py`
+
+`SQLALCHEMY_TRACK_MODIFICATIONS = False`
+
+<h1>Инициализируем механизм миграций.</h1>
+
+Для работы Flask-Migrate нужно создать нескольколь файлов и папок. Процесс автоматизирован, нам нужно выполнить команду:
+
+Linux и Mac: `export FLASK_APP=webapp2 && flask db init`
+Windows: `set FLASK_APP=webapp2 && flask db init`
+
+<h1>Создадим первую миграцию</h1>
+
+У нас создана база данных, поэтому чтобы посмотреть как работают миграции, переиминуем нашу бд
+`webapp2.db`
+
+Linux и Mac: `mv webapp.db webapp.db.old`
+
+Windows: `move webapp.db webapp.db.old`
+
+<h1>Создадим первую миграцию.</h1>
+
+Linux и Mac: `export FLASK_APP=webapp2 && flask db migrate -m "users and news tables"`
+
+Windows: `set FLASK_APP=webapp2 && flask db migrate -m "users and news tables"`
+
+В `migrations/versions/`  появился первый файл вида `hex_users_and_news_table.py` внутри в секции `upgrade()` написан код для создания таблиц.
+
+В секции `downgrade()` прописано удаления таблиц.
+
+<h1>Примение миграции.</h1>
+
+Миграция применяется командой `flask db upgrade` и если мы выполним её, то появится новый файл webapp.db. Там будет правиоьная структура, но не будет даннх. 
+Теперь файл `create_db.py` не нужен, можно удалить.
+
+Сделаем очередной мув.
+
+`mv webapp.db.old webapp.db`
+
+<h1>Миграции и существующие таблицы.</h1>
+У нас есть база со структурой и данными. Если мы попробуем выполнить миграцию на ней, то получим mv/move. 
+Усли мы попробуем выполнить миграцию, то получим ошибку.
+Чтобы работать с миграциями на существующей базе, нам нужно пометить нашу миграцию как выполненную командой `flask db stamp hex`.
+
+Если мы теперь увидим что там появилась новая таблица `alembic_version`
+
+------------------------
+
+### 4. Добавим поле в модель User
+
+Для того, чтобы добавить на сайт регистрацию, нам понадобится поле `email` в модели `User`:
+
+```python
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, promary_key=True)
+    username = db.Column(dn.String(50), index=True, unique=True)
+    password = db.Column(db.String(128))
+    role = db.Column(db.String(10), index=True)
+    email = db.Column(db.String(50))
+```
+
+Создадим миграцию и выполним ее.
+
+`flask db migrate -m "added email to user"`
+
+`flask db upgrade`
+
+Зайдем в базу данных и проверим, что в таблице `user` появилось новое поле.
+
+------------------
+
+### 5. Регистрация пользователей
+
+Форма регистрации похожа на форму логина, но мы добавим пару доп. полей.
+
+```python
+class RegistrationForm(FlaskForm):
+    username = StringField('Имя Пользователя', validators=[DataRequired()], render_kw={"class": "form-control"})
+    email = StringField('Email', validators=[DataRequired()],
+        render_kw={"class": "form-control"})
+    password = PasswordField('Пароль', validators=[DataRequired()],
+        render_kw={"class": "form-control"})
+    password2 = PasswordField('Повтори пароль', validators=[DataRequired()],
+        render_kw={"class": "form-control"})
+    submit = SubmitField('Отправить', render_kw={"class": "btn btn-primary"})
+```
+
+<h1>Добавим пару стандартных валидаторов</h1>
+
+Ранее был использован валидатор `DataRequired`, который проверя, что поле не пустое. Добавим валидаторы `Email` и `EqualTo` - они проверяют, что значение одного поля идентично значению другого.
+
+```python
+from wtforms.validators import DataRequired, Email, EqualTo
+...
+
+email = StringField('Email', validators=[DataRequired(), Email()],
+    render_kw={"class": "form-control"})
+password = PasswordField('Пароль', validators=[DataRequired()], 
+    render_kw={"class": "form-control"})
+password2 = PasswordField('Пароль', validators=[DataRequired(), EqualTo('password')],render_kw={"class": "form-control"})
+
+```
+
+<h1>Добавим шаблон</h1>
+
+Скопируем файл `templates/user/login.html` как `templates/user/registration.html` и поменяем форму под наши поля.
+
+```html
+{% extends "base.html" %}
+{% block content %}
+    <div class="row">
+      <div class="col-4">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+          <div class="alert alert-warning" role="alert">
+            {% for message in messages %}
+              {{ message }}<br>
+            {% endfor %}
+          </div>
+          {% endif %}
+        {% endwith %}
+        <form action="{{url_for('user.process_login')}}" method="post">
+          {{ form.hidden_tag() }}
+          <div class="form-group">
+            {{ form.username.label }}
+            {{ form.username() }}
+          </div>
+          <div class="form-group">
+            {{ form.email.label }}
+            {{ form.email() }}
+          </div>
+          <div class="form-group">
+            {{ form.password.label }}
+            {{ form.password() }}
+          </div>
+          <div class="form-group">
+            {{ form.password2.label }}
+            {{ form.password2() }}
+          </div>
+          {{ form.submit() }}         
+        </form>
+           
+      </div>
+      <div class="col-8">
+
+      </div>
+    </div>
+{% endblock %}
+
+```
+
+
+<h1>Cтраница регистрации</h1>
+
+<p>Сделана форма и шаблон, но чтобы все заработало, нужно добавить соответствующие route-ы и функции обработчики. Первая функция будет просто показыавть форму регистрации.</p>
+
+Открываем User/views.py
+
+```python
+from webapp2.db import db
+from webapp2.user.forms import LoginForm, RegistrationForm
+```
+
+- Функция регистрации
+
+```python
+@blueprint.route('/register')
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('news.index'))
+    form = RegistrationForm()
+    title = "Регистрация"
+    return render_template('user/registration.html', page_title=title, form=form)
+```
+
+<h1>Обработчик регистрации</h1>
+
+```python
+@blueprint.route('/process-reg', methods=['POST'])
+def process_reg():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        new_user = User(username=form.username.data, email=form.email.data, role='user')
+        new_user.set_password(form.password.data)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Вы успешно зарегестрировались!')
+        return redirect(url_for('user.login'))
+    flash('Пожалуйста, исправьте ошибки в форме')
+    return redirect(url_for('user.register'))
+```
+
+----------------
+
+### 6. Работа с пользовательскими шаблонами.
+<h1>Работа с  пользователем в шаблоне.</h1>
+
+<p>Flask-Login дает нам возможность обращатся к `current_user` в шаблоне:</p>
+menu -> login->
+
+```html
+{% if current_user.is_authenticated %}
+    <a class="nav-link" href="{{ url_for('user.logout') }}"> Выйти </a>
+{% else %}
+    <a class="nav-link" href="{{url_for('user.login')}}"> Войти </a>
+{% endif %}
+```
+
+- Поправим код согласно канону
+
+```html
+...
+
+ <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item active">
+        <a class="nav-link" href="/">Главная страница</a>
+      </li>
+
+    </ul>
+    <form class="form-inline my-2 my-lg-0">
+      <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
+      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Искать</button>
+    </form>
+    <ul class="navbar-nav">
+        <li class="nav-item">
+        {% if current_user.is_authenticated %}
+        <a class="nav-link" href="{{ url_for('user.logout') }}"> Выйти </a>
+        {% else %}
+        <a class="nav-link" href="{{url_for('user.login')}}"> Войти </a>
+        {% endif %}
+        
+      </li>
+      
+    </ul>
+  </div>
+```
+upgrade:
+
+```html
+<ul class="navbar-nav">
+        {% if current_user.is_authenticated %}
+        <li class="nav-item">
+            <span class="nav-link">Привет, {{ current_user.username }}</span>
+        </li>
+        {% if current_user.is_admin %}
+        <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('admin.admin_index') }}"> Админка </a>
+        </li>
+        {% endif %}
+        <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('user.logout') }}"> Выйти </a>
+        </li>
+        {% else %}
+        <li class="nab-item">
+            <a class="nav-link" href="{{ url_for('user.register') }}"> Регистрация </a>
+        </li>
+        <li class="nab-item">
+            <a class="nav-link" href="{{url_for('user.login')}}"> Войти </a>
+        </li>
+        {% endif %}
+      
+    </ul>
+```
+
+### 7. Дополнительные проверки в форме.
+<h1>Дополнительные проверки</h1>
+
+<p>Если пользователь при регистрации укажет имя которое уже есть в системе, то мы получим ошибку данных. Добавим собственные валидаторы для полей формы. Валидатор-это просто метод класса формы, имя которого строится как `validate_ПОЛЕ`, например `validate_email`. В случае ошибки валидатор должен выкидывать исключение `wtforms.validators.ValidationError`</p>
+
+```python
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
+from webapp2.user.models import User
+```
+
+- Файл дополняется в `webapp2/user/forms.py`
+
+```python
+class RegistrationForm(FlaskForm):
+    ...
+
+    def validate_username(self, username):
+        users_count = User.query.filter_by(username=username.data).count()
+        if users_count > 0:
+            raise ValidationErroe('Пользователь с таким именем уже зарегестрирован')
+
+    def validate_email(self,email):
+        users_counts = User.query.filter_by(email=email.data).count()
+        if users_count > 0:
+            raise ValidationError('Пользователь с такой электронной почтой уже зарегестрирован')
+
+```
+
+<h1>Вывод ошибок в шаблоне.</h1>
+
+- Будем передавать ошибки в форме при помощи `flash`
+
+```python
+def process_reg():
+    ...
+else:
+    for field, errors in form.errors.items():
+        for errors in errors:
+            flash('Ошибка в поле "{}": - {}'.format(getattr(form, field).label.text, errors
+            ))
+    return redirect(url_for('user.register'))
+```
+
+- Далее в `webapp2/user/register.html`
+
+```html
+  {% with message = get_flashed_messages() %}
+    {% if messages %}
+      {% for message in messages %}
+      <div class="alert alert-danger" role="alert">
+          {{ message }}
+      </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+```
+
+
+## Week 9
+1. Создадим отдельный модуль для получения новостей
+2. Соберем сниппеты с Хабрхабр
+3. Обработаем тексты новостей
+4. Рассмотрим страницы статей на сайте
+5. Знакомство с Celery
+6. Узнаем о выполнении задач по расписанию.
+
+### 1. Создадим отдельный модуль для получения новостей
+<p>Реализация сбора новостей с хабра.</p>
+
+#### Разобьем процесс на несколько шагов.
+1. Получение страницы со списком новостей.
+2. Сбор с неё ссылок на новости.
+3. Проверка, каих новостей у нас еще нет.
+4. СБор полного текста для каждой новости.
+
+
+#### Сделаем отдельный модуль для сбора новостей.
+Мы услужняем сбор новостей и возможно будем собирать новости из разных из
+разных источников. Создадим папку `webapp2/news/parsers/` и вней `__init__.py`,
+`utils.py`, `habr.py`.
+
+
+---------------
+
+<h1>User-Agent</h1>
+<p>Браузер делает запрос к сайту, он "представляется" отправляяя заголовок User-Agent. Либа requests по-умолчанию "представляется" как python-requests и некоторые сайты могут ограничить доступ к своему контенту по этому признаку.</p>
+
+<p>Библиотека requests дает нам возможность посылать свои header-ы.
+Скопируем значение User-Agent из браузера, и будем подставять при запросе.</p>
+
+
+<h1>Добавим User-Agent в get_html</h1>
+
+headers - Просто словарь.
+
+```python
+def get_html(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:65.0) Gecko/20100101 Firefox/65.0'
+    }
+    try:
+        result = requests.get(url, headers=headers)
+        ...
+```
+
+#### Сбор сниппетов новостей
+<p>Собираем `title`, `url`, `Дату новостей`,  и кладываем их в БД.</p>
+
+`habr.py`
+
+
+```python
+from bs4 import BeautifulSoup
+from datetime import datetime
+
+
+from webapp2.news.parsers.utils import get_html, save_news
+```
+
+<h1><Перепишем <b>get_habr_snippets</b></h1>
+
+`Сниппеты` - Небольшой новостной блок
+
+
+```python
+from bs4 import BeautifulSoup
+
+from webapp2.news.parsers.utils import get_html, save_news
+
+def get_habr_snippets() -> str:
+    html = get_html(
+        "https://habr.com/ru/search/?q=Python&target_type=posts&order=date"
+    )
+    if html:
+        soup = BeautifulSoup(html, "html.parser")
+        all_news = soup.find("div", class_="tm-articles-list").findAll("div", class_="tm-article-snippet")        
+        for news in all_news:
+            title = news.find("a", class_="tm-article-snippet__title-link").text
+            url = news.find("a", class_="tm-article-snippet__title-link")["href"]
+            published = news.find("span", class_="tm-article-snippet__datetime-published").text
+            print(title, url, published)
+
+
+```
+
+### 2. Соберем сниппеты с Хабрхабр
+
+<b>Выставим русскоязычную локаль для распознования даты.</b>
+
+`habr.py`
+Выставление локали отличается на Mac/Linux и Windows
+
+```python
+from datetime import datetime, timedelta
+import locale
+import platform
+
+if platform.system() == 'Windows':
+    locale.setlocale(locale.LC_ALL, "russian")
+else:
+    locale.setlocale(locale.LG_TIME, 'ru_RU')
+
+```
+
+<b>Напишем функцию Перевода даты</b>
+
+```python
+def parse_habr_date(date_str):
+    if 'сегодня' in date_str:
+        today = datetime.now()
+        date_str = date_str.replace('сегодня', today.strftime('%d %B %Y'))
+    elif 'вчера' in date_str:
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = date_str.replace('вчера', yesterday.strftime('%d %B %Y'))
+    try:
+        return datetime.strptime(date_str, '%d %B %Y в %H:%M')
+    except ValueError:
+        return datetime.now()
+```
+
+<b>Измененный скрипт `habr.py` </b>
+
+```python
+from datetime import datetime, timedelta
+import locale
+import platform
+from bs4 import BeautifulSoup
+
+from webapp2.news.parsers.utils import get_html, save_news
+
+if platform.system() == "Windows":
+    locale.setlocale(locale.LC_ALL, "russian")
+else:
+    locale.setlocale(locale.LC_TIME, "ru_RU.UTF-8")
+
+
+def parse_habr_date(date_str):
+    if "сегодня" in date_str:
+        today = datetime.now()
+        date_str = date_str.replace("сегодня", today.strftime("%d %B %Y"))
+    elif "вчера" in date_str:
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = date_str.replace("вчера", yesterday.strftime("%d %B %Y"))
+    try:
+        return datetime.strptime(date_str, "%d %B %Y в %H:%M")
+    except ValueError:
+        return datetime.now()
+
+
+def get_habr_snippets() -> str:
+    html = get_html("https://habr.com/ru/search/?q=Python&target_type=posts&order=date")
+    if html:
+        soup = BeautifulSoup(html, "html.parser")
+        all_news = soup.find("div", class_="tm-articles-list").findAll(
+            "div", class_="tm-article-snippet"
+        )
+        for news in all_news:
+            title = news.find("a", class_="tm-article-snippet__title-link").text
+            url = news.find("a", class_="tm-article-snippet__title-link")["href"]
+            published = news.find(
+                "span", class_="tm-article-snippet__datetime-published"
+            ).text
+            published = parse_habr_date(published)
+            save_news(title, 'https://habr.com'+ url, published)
+
+```
+
+### 3. Обработаем тексты новостей
+<p>Получение текстов новостей</p>
+
+Последовательность действий.
+1. Возьмем из базы все новости, у которых пустой `text`
+2. Для каждой новости сделаем запрос на `url`
+3. Получим html и выберем из него текст новости
+4. Сохраним текст в новости в базу.
+
+
+<b>Получим список новостей, у которых нет текста</b>
+Простой запрос к базе данных, если мы не добавляли текст, значит в поле будет `NULL` и мы сможем обратиться к таким полям через is_(None)
+
+```python
+def get_news_content():
+    news_without_text = News.query.filter(News.text.is_(None))
+    for news in news_without_text:
+        html = get_html(news.url)
+```
+
+<b>Получим текст статьи и сохраним его</b>
+Мы будем испольщовать `decode_contents`
+
+```python
+if html:
+    soup = BeautifulSoup(html, 'html.parser')
+    article = soup.find('div', class_='post__text-html').decode_contents()
+    if article:
+        news.text = article
+        db.session.add(news)
+        db.session.commit()
+```
+
+### 4. Рассмотрим страницы статей на сайте
+
+Добавим view для статей и проставим наних ссылки с главной
+
+```python
+from flask import abort, Blueprint, current_app, render_template
+
+@blueprint.route('/news/<int:news_id>')
+def single_news(news_id):
+    my_news = News.query.filter(News.id == news_id).first()
+    if not my_news:
+        abort(404)
+
+    return render_template('news/single_news.html', page_title=my_news.title, news=my_news)
+```
+
+<b>Поправим стили</b>
+
+```css
+.news-content img {
+    max-wodth: 100%
+}
+```
+
+
+И подключим его в `base.html`
+`<link rel="stylesheet" href={{url_for('static', filename='style.css')}}`
+
+<b>Добавим форматирование кода.</b>
+```html
+<link rel="stylesheet"
+href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/styles/default.min.css">
+<script
+src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/highlight.min.js">
+</script>
+<script>hljs.initHighlightingOnLoad();</script>
+```
+
+<b>Ссылки на страницы</b>
+Замена ссылок новостей.
+Змена в `index.html`
+
+`href="{{ url_for('news.single_news', news_id=news.id) }}"`
+
+Измененный `news/views.py`
+
+```python
+"""
+Работа с блюпринтами
+"""
+from flask import abort, Blueprint, current_app, render_template
+
+from webapp2.news.models import News
+from weather2 import weather_by_city
+
+
+# Основной роутинг. Префикса не будет
+blueprint = Blueprint("news", __name__)
+
+
+@blueprint.route("/")
+def index() -> str:
+    page_title = "Новости Python"
+    weather = weather_by_city(current_app.config["WEATHER_DEFAULT_CITY"])
+    news_list = News.query.filter(News.text.isnot(None)).order_by(News.published.desc()).all()
+    return render_template(
+        "news/index.html", title=page_title, weather=weather, news_list=news_list
+    )
+
+@blueprint.route('/news/<int:news_id>')
+def single_news(news_id):
+    my_news = News.query.filter(News.id == news_id).first()
+    if not my_news:
+        abort(404)
+
+    return render_template('news/single_news.html', page_title=my_news.title, news=my_news)
+```
+
+### 5. Знакомство с Celery
+Сейчас сбор проиходит в ручную. Нам необходимо автоматизировать сбор. 
+Celery наш выбор
+
+Он используется в проекта, когда нужно выполнять задачи асинхронно (не занимая время веб-сервера) или запускать их по расписанию.
+
+<b>Установка зависимостей</b>
+Для работы понадобится установить Redis. Redis бд типа ключ-значение, которую Celery будет использовать для хранения очереди задач.
+
+Инсталл
+`apt-get install redis-server`
+
+<b>Установка Celery</b>
+`pip install calery[redis]`
+
+<b>Создадим тестовый таск</b>
+Такс - функция, обернутая в декоратор `celery.task`. Такую функцию можно вызвать напрямую, так и передавать на исполнение Celery при помощи метода `delay()`
+
+
+<b>Создадим тестовй таск</b>
+Создадим `tasks.py` в корне проекта и сделаем таск, который складывает два числа:
+
+```python
+from celery import Celery
+
+celery_app = Celery('tasks', broker='redis://localhost:6379/0')
+
+@celery_app.task
+def add(x, y):
+    print(x + y)
+```
+
+<b>Запустим Celery</b>
+
+<b>Linux/Mac - </b> `celery -A tasks worker --loglevel=info`
+
+<b>Windows - </b> `set FORKED_BY_MULTIPROCESSING=1 && celery -A tasks worker --loglevel=info`
+
+
+Чтобы начало работать надо добвить
+```python
+from tasks import add
+
+add.delay(234,234)
+```
+
+`add.delay` производит асинхронный вызов.
+
+
+### 6. Выполнение задач по расписанию.
+
+```python
+from webapp2 import create_app
+from webapp2.news.parsers import habr
+
+flask_app = create_app()
+
+@celery_app.task
+def habr_snippets():
+    with flask_app.app_context():
+        habr.get_news_snippets()
+
+
+@celery_app.task
+def habr_content():
+    with flask_app.app_context():
+        habr.get_news_content()
+
+
+```
+
+Открываем второе окно терминала и переходим по дерикториям до проекта
+в нем включаем python
+```python
+>>> from tasks import habr_snippets
+
+>>> habr_snippets.delay()
+```
+
+<b>Автозапуск по времени</b>
+
+Используем модуль `cron` из celery и добавим при запуске celery расписание.
+
+```python
+from celery.schedules import crontab
+
+@celery_app.on_after_configure.connect
+def setup_periodic_tasks(sender, **kwargs):
+    sender.add_periodic_task(crontab(minute='*/1'), habr_snippets.s())
+```
+
+<b>Запустим Celery-beat</b>
+<p>Celery-beat - запускает работу задач по расписанию. Он следит за расписанием и отправляет задачи worker-am. Beat нужно запускать отдельно, пожтому понадобится еще одно окно терминала.</p>
+
+`celery -A tasks beat`
+
+
+Если проект простой, можно использовать такое:
+`celery -A tasks worker -B --loglevel=INFO`

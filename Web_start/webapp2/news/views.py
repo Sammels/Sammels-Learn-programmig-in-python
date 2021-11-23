@@ -1,7 +1,7 @@
 """
 Работа с блюпринтами
 """
-from flask import Blueprint, current_app, render_template
+from flask import abort, Blueprint, current_app, render_template
 
 from webapp2.news.models import News
 from weather2 import weather_by_city
@@ -15,7 +15,15 @@ blueprint = Blueprint("news", __name__)
 def index() -> str:
     page_title = "Новости Python"
     weather = weather_by_city(current_app.config["WEATHER_DEFAULT_CITY"])
-    news_list = News.query.order_by(News.published.desc()).all()
+    news_list = News.query.filter(News.text.isnot(None)).order_by(News.published.desc()).all()
     return render_template(
         "news/index.html", title=page_title, weather=weather, news_list=news_list
     )
+
+@blueprint.route('/news/<int:news_id>')
+def single_news(news_id):
+    my_news = News.query.filter(News.id == news_id).first()
+    if not my_news:
+        abort(404)
+
+    return render_template('news/single_news.html', page_title=my_news.title, news=my_news)
