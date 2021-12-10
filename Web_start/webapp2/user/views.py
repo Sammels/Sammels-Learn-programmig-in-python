@@ -1,5 +1,6 @@
 from webapp2.user.forms import LoginForm, RegistrationForm
 from webapp2.user.models import User
+from webapp2.utils import get_redirect_target
 from webapp2.db import db
 
 from flask import Blueprint, render_template, flash, redirect, url_for
@@ -14,7 +15,7 @@ blueprint = Blueprint("user", __name__, url_prefix="/users")
 def login():
     # Если пользватель авторизован редирект на главную
     if current_user.is_authenticated:
-        return redirect(url_for("news.index"))
+        return redirect(get_redirect_target())
     title = "Авторизация"
     # Нужно создать экземпляр формы (класс), некое формальное описание
     # чтобы работать с формой
@@ -30,7 +31,7 @@ def process_login():
         if user and user.check_password(form.password.data):
             login_user(user, remember=form.remember_me.data)
             flash("Вы вошли на сайт")
-            return redirect(url_for("user.login"))
+            return redirect(get_redirect_target())
 
     flash("Неправильное имя пользователя или пароль")
     return redirect(url_for("user.login"))

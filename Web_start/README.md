@@ -1566,3 +1566,389 @@ def setup_periodic_tasks(sender, **kwargs):
 
 Если проект простой, можно использовать такое:
 `celery -A tasks worker -B --loglevel=INFO`
+
+
+## Week 10
+
+1. Создаем модель Comment
+2. Запросы с испольлзованием ForeignKey и relationships
+3. Отображение Комментариев на сайте.
+4. Форма добавления комментариев
+5. Созраняем комментарии в базу
+6. Добавляем проверки
+
+
+### 1. Создаем модель Comment
+
+<p>Комментарий должен быть привязан к конкретной новости, и к зарегестрированному пользователю.</p>
+<p>Для этого будем исп поля типа `ForeignKey` и механизм `relationship` из SQLAlchemy</p>
+
+#### ForeignKey
+<p><b>Внешний ключ</b> (Foreignkey) - ссылка из записи в одной таблице на запись в другой.
+    Пример :
+    <b>Все комментарии к одной новости будут ссылатся на поле id этой новости. Добавим в модель комментариев поле news_id в котором будем записывать жтот идентификатр новости. </b>
+</p>
+
+<p>Аналогично, для связи комментария с пользователем сделаем связь по user_id</p>
+
+#### Модель Comment
+
+```python
+...
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    created = db.Column(db.DateTime, nullable=False, default=datetime.now())
+    news_id = db.Column(
+        db.Integer,
+        db.ForeignKey('news.id', ondelete='CASCADE'),
+        index=True
+    )
+    user_id = DB.Column(
+        db.Integer,
+        db/ForeignKey('user.id', ondelete='CASCADE'),
+        index = True
+        )
+
+    def __repr__(self):
+        return '<Comment {}>'.format(self.id)
+```
+
+#### Сделаем Миграцию
+
+<p>Мы добавили модель в программу, но чтобы она появилась в базе, нужно сделать миграциию (в Windows используйте set вместо export)</p>
+
+`exporty FLASK_APP=webapp && flask db mirate -m "Comments model"`
+
+`flask db upgrade`
+
+
+### 2. Запросы с испольлзованием ForeignKey и relationships
+
+#### Создадим тестовый комментарий
+
+`export FLASK_APP=weabapp2 && flask shell`
+
+```python
+>>> from webapp2.db import db
+>>> from webapp2.news.models import Comment
+>>> c = Comment(text='Проверка', news_id=2, user_id=1)
+>>> db.session.add(c)
+>>> db.session.commit()
+```
+
+#### Выборки комментариев
+<p>Теперь мы сможем выбрать все коментарии пользователя отфильтровав его по user_id</p>
+
+```python
+>>> user_comments = Comments.query.filter(Comment.user_id==1).all()
+>>> print(user_comments)
+[<Comment 1>]
+```
+
+<p>Или взять комментарии для новости, отфильтров их по news_id </p>
+
+```python
+>>> news_comments = Comment.query.filter(Comment.news_id==2).order_by(Comment.created).all()
+
+>>> print(news_comments)
+[<Comment 1>]
+```
+
+#### Relationships
+`relationship` добавляет удобный интерфейс доступа к связанным данным:
+
+```python
+from sqlalchemy.orm import relationship
+...
+
+    user_id = db.Column(
+        db.Integet,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        index=True
+    )
+    news = relationship('News', backref='comments')
+    user = relationship('User', backref='comments')
+
+```
+
+#### Работа через связи
+Связи помогают обрашаться к связанным сущностям как к объектам.
+<b>Например, получить username автора комментария:</b>
+
+```python
+from webapp2.news.models import Comment
+
+>>> c = Comment.query.get(1)
+>>> c.user
+<User name=Somename id=1>
+
+>>> c.user.username
+'Some name'
+```
+
+Через backref мы можем, например, получить все комментарии пользователя:
+```python
+from webapp2.user.models import User
+
+>>> u = User.query.get(1)
+>>> u.comments
+[<Comment 1>, <Comment 2>]
+>>> len(u.comments)
+2
+>>> u.comments[0].news.title
+'some txt'
+```
+
+### 3. Отображение Комментариев на сайте.
+
+#### Подсчет количества комментариев
+Добавим в модель News метод для подсчета комментариеа:
+
+```python
+def comments_count(self):
+    return Comment.query.filter(Comment.news_id == self.id).count()
+
+```
+
+Будем вызывать его в шаблоне index.html
+
+```html
+<p>{{ news.publiched.strftime( '%d.%m.%Y') }} |
+            Комментарии: {{ news.comments_count() }}</p>
+```
+
+#### Вывод комментариев на странице новостей
+Исп. [Code](https://getbootstrap.com/docs/4.2/components/card/ "Code") из bootstrap
+
+```html
+{% if news.comments %}
+    <h3>Комментарии:</h3>
+    {% for comment in news.comments %}
+    <div class="card">
+        <div class="card-body">
+            <p class="card-text"> {{ comment.text }}</p>
+            <p class="card-text">
+                <small> Опубликовано: {{ comment.created.strftime('%d.%m.%Y') }} |
+                    Автор: {{ comment.user.username }}</small>
+            </p>
+        </div>
+    </div>
+    {% endfor %}
+{% endif %}
+```
+
+
+
+### 4. Форма добавления комментариев
+
+#### Формам добавления комментариев
+Создадим файл `forms.py` в блюпринте news и добавим форму:
+
+```python
+from flask_wtf import FlaskForm
+from wtforms import HiddenField, StringField, SubmitField
+from wtforms.validators import DataRequired
+
+class CommentForm(FlaskForm):
+    news_id = HiddenField('ID новости', validators=[DataRequired()])
+    comment_text = StringField('Текст комментария',
+        validators=[DataRequired()], render_kw={"class": "form-control"})
+    submit = SubmitField('Отправить!', 
+        render_kw={"class": "btn btn-primary"})
+```
+
+#### Добавим форму во View
+
+```python
+from webapp2.news.forms import CommentForm
+
+@blueprint.route('/news/<int:news_id>')
+def single_news(news_id):
+    ...
+    form = CommentForm()
+    return render_template(
+        'news/single_news.html',
+        page_title=my_news.title,
+        news=my_news,
+        comment_form=form
+        )
+```
+
+#### Добавим view-обработчик
+Пока сделаем его пустым, просто чтобы можно было сослаться на него в форме. Ключевое слово pass дает интерпретатору понять, что мы планируем в дальнейшкм добавить сюда код.
+
+```python
+@blueprint.route('/news/comment', methods=['POST'])
+def add_component():
+    pass
+```
+
+#### Выведем форму в шаблоне
+
+```html
+<form action="{{ url_for('news.add_comment') }}" method="POST"
+    {{ comment_form.hidden_tag()}}
+    <div class="form-group">
+        {{ comment_form.comment_text.label }}
+        {{ comment_form.comment_text() }}
+    </div>
+    {{ comment_form.submit() }}
+</form>
+```
+
+#### Автозаполнение поля news_id
+<p>Чтобы привяз комментарий к новости мы будем использовать hidden-поле news_id. Чтобы запомнить его, просто передадим его значение при создании формы во views.py</p>
+
+`form = CommentForm(news_id=my_news.id)`
+
+
+### 5. Созраняем комментарии в базу
+
+#### Сохранение комментария
+```python
+from flask import abort, Blueprint, flash, curren_app, render_template, redirect, request, url_for
+from flask_login import current_user
+from webapp2.db import db
+from webapp2.news.models import Comment, News
+
+@blueprint.route('/news/comment', methods=['POST'])
+def add_comment():
+    form = CommentForm()
+    if form.validate_on_submit():
+        if News.query.filter(News.id == form.news_id.data).first():
+            comment = Comment(text=form.comment_text.data, news_id=form.news_id.data, user_id=current_user.id)
+            db.session.add(comment)
+            db.session.commit()
+            flash("Коммент успешно добавлен")
+    ...
+```
+
+Продолжение
+```python
+...
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash('Ошибка заполнения поля "{}": - {}'.format(
+                    getattr(form, field).label.text,
+                    error
+                ))
+    return redirect(request.referer)
+
+```
+
+#### Добавим на страницу блок для отображения ошибок
+
+<p>Этот блок исп у нас на разных страницах, вынесем в отд. шабл и сделаем include в шаблонах, в которых этот код используется</p>
+
+`{% include('message.html') %}`
+
+
+### 6. Добавляем проверки
+
+#### Ограничения для неавторизованных
+
+Если пользователь не авторизован, то комментарий не сохранится, и выйдет 500
+
+```html
+{ % if current_user.is_authenticated %}
+    <form action="{{url_for(news.add_comment') }}" method="POST">
+        ...
+    </form>
+{% else %}
+    <p><a href="{{ url_for('user.login') }}"> Авторизуйтесь </a>,
+            чтобы комментировать</p>
+{% endif %}
+```
+
+#### Добавим login_required
+Все views, которые доступны только автоматизированным пользователям нужно закрывать декоратором @login_required
+
+```python
+from flask_login import current_user, login_required
+
+@blueprint.route('/news/comment', methods=['POST'])
+@login_required
+def add_comment():
+    form = CommentForm()
+    ...
+```
+
+#### Вынесем проверку существования новости в форму
+<p>Все проверки входящих данных, которые мы получаем в форме должна делать сама форма. </p>
+
+```python
+from wtform.validators import DataRequired, ValidationError
+from webapp2.news.models import News
+class CommentForm(FlaskForm):
+    ...
+    def validate_news_id(self,news_id):
+        if not News.query.get(news_id.data):
+            raise ValidationError('Вы пытаетесь прокомментировать новость с несуществующим id')
+```
+
+#### Безопасное использование request.referrer
+<p>Добавим [функцию для проверки ссылки](https://flask.pocoo.org/snippets/62/ "link")</p>
+
+```python
+from urllib.parse import urlparse, urljoin
+from flask import request
+
+def is_safe_url(target):
+    ref_url urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+
+def get_redirect_target():
+    for target in request.values.get('next'), request.referrer:
+        if not target:
+            continue
+        if is_safe_url(target):
+            return target
+```
+
+
+#### Используем get_redirect_target()
+Проверка, передан ли в url или форме параметр next и если да - перенаправляет на него. Если нет, то отправляет на страницу, с которой пришел пользователь.
+
+```python
+from webapp2.utils import get_redirect_target
+
+@blueprint.route('/news/comment', methods=['POST'])
+@login_required
+def add_comments():
+    ...
+    return redirect(get_redirect_target())
+```
+
+#### Добавим редирект после логина
+Исп параметр next для перенаправления пользователя на страницу, от куда он пришел.
+
+```python
+from webapp2.utils import get_redirect_target
+
+@blueprint.route('login')
+def login():
+    if current_user.is_authenticated:
+        return redirect(get_redirect_target())
+    ...
+@blueprint.route('/process-login', methods=['POST'])
+def process_login():
+    form = LoginForm()
+
+if form.validate_on_submit():
+    user = User.query.filter(User.username == form.username.data).first()
+if user and user.check_password(form.password.data):
+    login_user(user, remember=form.remember_me.data)
+        flash('Вы успешно вошли на сайт')
+        return redirect(get_redirect_target())
+    ...
+``` 
+
+#### Используем новый функционал
+Добавим параметр next в ссылку авторизации
+
+```html
+<a href="{{ url_for('user.login', next=request.full_path) }}"> Авторизуйтесь </a>
+```
